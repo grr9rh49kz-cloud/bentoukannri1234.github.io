@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f6f4f">
+<meta name="description" content="冷凍弁当の在庫を管理するアプリ。配送予定と食事ルールから在庫を自動計算します。">
+<title>冷凍弁当 在庫管理</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f6f4f'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle'%3E%F0%9F%8D%B1%3C/text%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="弁当在庫">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header__row">
+    <h1 class="app-title">🍱 冷凍弁当 在庫管理</h1>
+    <button id="saveStateBtn" class="save-state" type="button" title="保存状況">保存済み</button>
+  </div>
+</header>
+
+<main>
+  <!-- ホーム -->
+  <section id="tab-home" class="tab-panel is-active">
+    <div class="setup-card" id="setupCard" hidden>
+      <h2>はじめに在庫を登録してください</h2>
+      <p>いま冷凍庫にある弁当の個数を入れると、ここから自動で計算をはじめます。</p>
+      <button class="btn btn--primary" type="button" id="btnSetup">在庫の個数を入力する</button>
+    </div>
+
+    <div class="stock-card" id="stockCard">
+      <div class="stock-card__label">現在の在庫</div>
+      <div class="stock-card__value"><span id="stockNow">0</span><span class="unit">食</span></div>
+      <div class="stock-card__note" id="stockNote"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card mini">
+        <div class="mini__label">次に食べる</div>
+        <div class="mini__value" id="nextMeal">—</div>
+      </div>
+      <div class="card mini">
+        <div class="mini__label">次の配送</div>
+        <div class="mini__value" id="nextDelivery">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">直近の食事予定</h2>
+      <p class="hint">食べた数が違うときは数字を押して修正できます（0＝食べなかった）。</p>
+      <div id="quickList" class="quick-list"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">その他の記録</h2>
+      <div class="btn-row">
+        <button class="btn" type="button" id="btnAddExtra">＋ 臨時で食べた</button>
+        <button class="btn" type="button" id="btnAddAdjust">＋ 在庫を補正（廃棄など）</button>
+        <button class="btn" type="button" id="btnStocktake">🔢 実数で数え直す</button>
+      </div>
+      <div id="recordList" class="record-list"></div>
+    </div>
+  </section>
+
+  <!-- カレンダー -->
+  <section id="tab-calendar" class="tab-panel">
+    <div class="card">
+      <div class="cal-head">
+        <button class="btn btn--icon" type="button" id="calPrev" aria-label="前の月">‹</button>
+        <h2 class="cal-title" id="calTitle">—</h2>
+        <button class="btn btn--icon" type="button" id="calNext" aria-label="次の月">›</button>
+      </div>
+      <div class="cal-sub">
+        <button class="btn btn--sm" type="button" id="calToday">今月へ</button>
+        <span class="legend"><span class="legend__item">🍱 食事</span><span class="legend__item">📦 配送</span><span class="legend__item">数字＝その日の終わりの在庫</span></span>
+      </div>
+      <div class="cal-grid cal-grid--head">
+        <div class="cal-dow cal-dow--sun">日</div><div class="cal-dow">月</div><div class="cal-dow">火</div>
+        <div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div><div class="cal-dow cal-dow--sat">土</div>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <p class="hint">日付を押すと、その日の食事・配送・補正をまとめて編集できます。</p>
+    </div>
+  </section>
+
+  <!-- 予定 -->
+  <section id="tab-schedule" class="tab-panel">
+    <div class="card">
+      <h2 class="card__title">在庫の推移</h2>
+      <div class="btn-row">
+        <label class="inline-label">表示範囲
+          <select id="scheduleRange">
+            <option value="30">30日</option>
+            <option value="60" selected>60日</option>
+            <option value="120">120日</option>
+            <option value="365">1年</option>
+          </select>
+        </label>
+        <label class="inline-label"><input type="checkbox" id="scheduleOnlyEvents" checked> イベントがある日だけ</label>
+      </div>
+      <div id="scheduleList" class="sched-list"></div>
+    </div>
+  </section>
+
+  <!-- 配送 -->
+  <section id="tab-delivery" class="tab-panel">
+    <div class="card">
+      <h2 class="card__title">配送を登録</h2>
+      <p class="hint">到着日が決まったら登録してください。個数の初期値は設定で変えられます。</p>
+      <form id="deliveryForm" class="form-grid" autocomplete="off">
+        <label>到着日<input type="date" id="delDate" required></label>
+        <label>個数<input type="number" id="delQty" min="0" step="1" inputmode="numeric" required></label>
+        <label>業者<input type="text" id="delProvider" placeholder="ベルーナ"></label>
+        <label>メモ<input type="text" id="delNote" placeholder="任意"></label>
+        <input type="hidden" id="delId">
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit" id="delSubmit">登録する</button>
+          <button class="btn" type="button" id="delCancel" hidden>編集をやめる</button>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2 class="card__title">配送の一覧</h2>
+      <div id="deliveryList" class="delivery-list"></div>
+    </div>
+  </section>
+
+  <!-- 設定・データ -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="card">
+      <h2 class="card__title">基準の在庫</h2>
+      <p class="hint">この日の朝の在庫を基準に、配送と食事から現在の在庫を計算します。</p>
+      <div class="form-grid">
+        <label>基準日<input type="date" id="setStartDate"></label>
+        <label>基準日の在庫<input type="number" id="setStartStock" min="0" step="1" inputmode="numeric"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">食事のルール</h2>
+      <div class="switch-list">
+        <label class="switch"><input type="checkbox" id="ruleTue"><span>毎週 火曜 17:00 に1食</span></label>
+        <label class="switch"><input type="checkbox" id="ruleThu"><span>毎週 木曜 17:00 に1食</span></label>
+        <label class="switch"><input type="checkbox" id="ruleSat"><span>毎週 土曜 12:00 に1食</span></label>
+        <label class="switch"><input type="checkbox" id="ruleAugWed"><span>8月の水曜 12:00 に1食</span></label>
+        <label class="switch"><input type="checkbox" id="ruleFifthWed"><span>第5水曜 12:00 に1食</span></label>
+        <label class="switch"><input type="checkbox" id="ruleHolidayWed"><span>水曜が祝日 12:00 に1食</span></label>
+      </div>
+      <p class="hint">祝日はアプリ内で計算します（振替休日・国民の休日を含む）。水曜の条件が重なっても1食です。</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">その他</h2>
+      <div class="form-grid">
+        <label>宅配業者<input type="text" id="setProvider" placeholder="ベルーナ"></label>
+        <label>配送の既定個数<input type="number" id="setDefaultQty" min="0" step="1" inputmode="numeric"></label>
+        <label>残り少ない警告（食）<input type="number" id="setThreshold" min="0" step="1" inputmode="numeric"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">データの保存</h2>
+      <p class="hint">変更はこの端末のブラウザに自動保存されます。機種変更や他の端末と共有する場合は、下のバックアップかGitHub同期を使ってください。</p>
+      <div class="btn-row">
+        <button class="btn" type="button" id="btnExport">⬇ バックアップを書き出す</button>
+        <label class="btn" for="importFile">⬆ バックアップを読み込む</label>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">GitHub同期（任意）</h2>
+      <p class="hint">
+        GitHubに <code id="syncPathLabel">data/inventory.json</code> として保存すると、別の端末でも同じ在庫を見られます。
+        保存には「Contents: Read and write」権限のみを付けた<b>ファイングレイン個人アクセストークン</b>を使ってください。
+        トークンはこの端末のブラウザにだけ保存され、公開ページには含まれません。
+      </p>
+      <div class="form-grid">
+        <label>GitHubユーザー名<input type="text" id="syncOwner" placeholder="例: your-name" autocomplete="off"></label>
+        <label>リポジトリ名<input type="text" id="syncRepo" placeholder="例: bentoukannri1234.github.io" autocomplete="off"></label>
+        <label>ブランチ<input type="text" id="syncBranch" placeholder="main" autocomplete="off"></label>
+        <label>ファイルの場所<input type="text" id="syncPath" placeholder="data/inventory.json" autocomplete="off"></label>
+        <label>アクセストークン<input type="password" id="syncToken" placeholder="github_pat_... （保存のみ必要）" autocomplete="off"></label>
+      </div>
+      <label class="switch"><input type="checkbox" id="syncAuto"><span>変更を自動でGitHubに保存する</span></label>
+      <div class="btn-row">
+        <button class="btn btn--primary" type="button" id="btnPush">☁ GitHubに保存</button>
+        <button class="btn" type="button" id="btnPull">⤓ GitHubから読み込む</button>
+      </div>
+      <div id="syncMessage" class="sync-message"></div>
+    </div>
+
+    <div class="card card--danger">
+      <h2 class="card__title">初期化</h2>
+      <div class="btn-row">
+        <button class="btn btn--danger" type="button" id="btnReset">この端末のデータを消す</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button class="tabbar__btn is-active" type="button" data-tab="home"><span>🏠</span>ホーム</button>
+  <button class="tabbar__btn" type="button" data-tab="calendar"><span>📅</span>カレンダー</button>
+  <button class="tabbar__btn" type="button" data-tab="schedule"><span>📈</span>在庫推移</button>
+  <button class="tabbar__btn" type="button" data-tab="delivery"><span>📦</span>配送</button>
+  <button class="tabbar__btn" type="button" data-tab="settings"><span>⚙️</span>設定</button>
+</nav>
+
+<!-- 日別の編集シート -->
+<div class="sheet" id="daySheet" hidden>
+  <div class="sheet__backdrop" data-close="1"></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet__head">
+      <h2 id="sheetTitle" class="sheet__title">—</h2>
+      <button class="btn btn--icon" type="button" data-close="1" aria-label="閉じる">✕</button>
+    </div>
+    <div class="sheet__body" id="sheetBody"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/util.js"></script>
+<script src="js/holidays.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

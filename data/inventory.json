@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-15T00:00:00.000Z",
+  "settings": {
+    "provider": "ベルーナ",
+    "configured": false,
+    "startDate": "2026-09-15",
+    "startStock": 0,
+    "defaultDeliveryQty": 10,
+    "lowStockThreshold": 3,
+    "rules": {
+      "tue": true,
+      "thu": true,
+      "sat": true,
+      "augWed": true,
+      "fifthWed": true,
+      "holidayWed": true
+    },
+    "sync": {
+      "owner": "",
+      "repo": "",
+      "branch": "main",
+      "path": "data/inventory.json",
+      "auto": true
+    }
+  },
+  "deliveries": [],
+  "overrides": {},
+  "extras": [],
+  "adjustments": []
+}
